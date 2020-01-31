@@ -2,12 +2,14 @@ import requests
 import xlwt
 from bs4 import BeautifulSoup
 import datetime
+import send_email
 
 # 这是一个自动抓取当当网近7日畅销书的爬虫程序，抓取后自动保存为以当前日期时间命名的excel中
 
 def time():
     now_time = datetime.datetime.now().strftime('%G-%m-%d_%H%M%S')
     return now_time
+
 
 def write_to_excel(books):  # 写入数据至excel中
     # 创建一个workbook 设置编码
@@ -28,13 +30,20 @@ def write_to_excel(books):  # 写入数据至excel中
             except:
                 pass
 
-    workbook.save('{}.xls'.format(time()))
+    Time = time()  # 以当前时间命名保存文件
+    workbook.save('{}.xls'.format(Time))
+    send_email.send(subject='【】成功读取当当网畅销书信息'.format(datetime.datetime.now().strftime('%G-%m-%d')),
+                    text='畅销书信息已成功保存到Excel文件：{}.xls'.format(Time))
     return None
 
 
 def website_analysis(url):
     books = []
-    req = requests.get(url=url)
+    try:
+        req = requests.get(url=url)
+    except:
+        print('网页超时，将再次尝试')
+        req = requests.get(url=url)
     soup = BeautifulSoup(req.text, 'html.parser')
 
     for i in soup.find_all('li'):
@@ -43,12 +52,14 @@ def website_analysis(url):
             book_name = i.find('div', class_='name').a.attrs['title']
             remarks = i.find('div', class_='star').a.string
             recommend = i.find('span', class_='tuijian').string
+            author, publish_time, publisher = '', '', ''
             for j in i.find_all('div', class_='publisher_info'):
-                if j.contents[0].name == 'span':
-                    publish_time = j.span.string
-                    publisher = j.contents[2].string
-                else:
-                    author = j.a.attrs['title']
+                if j.contents:
+                    if j.contents[0].name == 'span':
+                        publish_time = j.span.string
+                        publisher = j.contents[2].string
+                    else:
+                        author = j.a.attrs['title']
             price_new = i.find('span', class_='price_n').string  # 现价格
             price_old = i.find('span', class_='price_r').string  # 原价格
             price_discount = i.find('span', class_='price_s').string  # 折扣
